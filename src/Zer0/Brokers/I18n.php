@@ -2,7 +2,7 @@
 
 namespace Zer0\Brokers;
 
-use PHPDaemon\Core\ClassFinder;
+use Gettext\Translator;
 use Zer0\Config\Interfaces\ConfigInterface;
 
 /**
@@ -14,10 +14,13 @@ class I18n extends Base
 
     /**
      * @param ConfigInterface $config
-     * @return \Zer0\Mailer\Base
      */
-    public function instantiate(ConfigInterface $config):  \Zer0\I18n\I18n
+    public function instantiate(?ConfigInterface $config)
     {
-        return new \Zer0\I18n\I18n($config);
+        $config = $this->getConfig();
+        $t = new Translator;
+        $t->loadTranslations(ZERO_ROOT . '/' . ($this->i18nConfig->compiled_dir ?? 'compiled/locales') . '/' . $this->lastName . '.php');
+        $t->register();
+        return $t;
     }
 }
