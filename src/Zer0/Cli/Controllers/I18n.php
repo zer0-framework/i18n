@@ -3,6 +3,7 @@
 namespace Zer0\Cli\Controllers;
 
 use Gettext\Merge;
+use Gettext\Translation;
 use Gettext\Translations;
 use Zer0\Cli\AbstractController;
 use Zer0\Config\Interfaces\ConfigInterface;
@@ -20,7 +21,7 @@ final class I18n extends AbstractController
 
     public function before(): void
     {
-        $this->i18n = $this->app->broker('I18n')->getConfig();
+        $this->i18nConfig = $this->app->broker('I18n')->getConfig();
     }
 
     /**
@@ -42,7 +43,7 @@ final class I18n extends AbstractController
      */
     public function extractAction(): void
     {
-        $poFile = ZERO_ROOT . '/' . ($this->i18nConfig->directory ?? 'locales') . '/ru.po';
+        $poFile = ZERO_ROOT . '/' . ($this->i18nConfig->directory ?? 'locales') . '/' . $this->i18nConfig->source_language . '.po';
 
         $translations = Translations::fromPoFile($poFile);
 
@@ -57,14 +58,16 @@ final class I18n extends AbstractController
                 $extracted = Translations::fromQuickyFile($file);
             }
             $count = 0;
+            /**
+             * @var Translation $tr
+             */
             foreach ($extracted as $tr) {
-                $original = $tr->getOriginal();
-                if (!$translations->find(null, $original)) {
+                if (!$translations->find($tr->getContext(), $tr->getOriginal())) {
                     if ($count === 0) {
                         $this->cli->successLine('Extracted from ' . $file);
                     }
                     ++$count;
-                    $this->cli->writeln("\t" . $original);
+                    $this->cli->writeln("\t" . $tr->getOriginal());
                 }
             }
             $translations->mergeWith($extracted, Merge::ADD);
