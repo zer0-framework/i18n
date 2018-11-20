@@ -5,6 +5,7 @@ namespace Zer0\Cli\Controllers;
 use Gettext\Merge;
 use Gettext\Translations;
 use Zer0\Cli\AbstractController;
+use Zer0\Config\Interfaces\ConfigInterface;
 
 /**
  * Class I18n
@@ -12,6 +13,9 @@ use Zer0\Cli\AbstractController;
  */
 final class I18n extends AbstractController
 {
+    /**
+     * @var ConfigInterface
+     */
     protected $i18nConfig;
 
     public function before(): void
@@ -19,6 +23,9 @@ final class I18n extends AbstractController
         $this->i18n = $this->app->broker('I18n')->getConfig();
     }
 
+    /**
+     *
+     */
     public function buildAction(): void
     {
         foreach (glob(ZERO_ROOT . '/' . ($this->i18nConfig->directory ?? 'locales') . '/*.po') as $poFile) {
@@ -30,6 +37,9 @@ final class I18n extends AbstractController
         }
     }
 
+    /**
+     *
+     */
     public function extractAction(): void
     {
         $poFile = ZERO_ROOT . '/' . ($this->i18nConfig->directory ?? 'locales') . '/ru.po';
