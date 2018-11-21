@@ -8,7 +8,6 @@ use Gettext\Translations;
 use Hoa\Console\Cursor;
 use Hoa\Console\Readline\Readline;
 use Zer0\Cli\AbstractController;
-use Zer0\Cli\Exceptions\CliError;
 use Zer0\Config\Interfaces\ConfigInterface;
 use Zer0\Exceptions\InterruptedException;
 
@@ -106,84 +105,93 @@ final class I18n extends AbstractController
                 $rl = new Readline();
                 find:
                 $found = false;
+                try_block:
+                try {
+                    $cleanSource = $source;
+                    $cleanSource = preg_replace('~\{[^}]+\}~', "\x00", $cleanSource);
 
-                $cleanSource = $source;
-                $cleanSource = preg_replace('~\{[^}]+\}~', "\x00", $cleanSource);
-
-                preg_replace_callback('~<script[^>]*>.*?</script>|<[^>]+>|\{[^}]+\}|(\s*)([A-ZА-Яа-я&][^<"{}\x00]+)(\s*)~siu',
-                    function ($match) use ($rl, &$found, &$source, $file, $skippedFile, &$skipped) {
-                        if (($match[2] ?? '') === '') {
-                            return;
-                        }
-                        $orig = trim($match[2]);
-                        foreach ($skipped as $item) {
-                            if ($item['file'] === $file && $item['match'] === $orig) {
+                    $replaced = [];
+                    preg_replace_callback('~<script[^>]*>.*?</script>|<[^>]+>|\{[^}]+\}|(\s*)([A-ZА-Яа-я&][^<"{}\x00]+)(\s*)~siu',
+                        function ($match) use ($rl, &$found, &$source, $file, $skippedFile, &$skipped, &$replaced) {
+                            if (($match[2] ?? '') === '') {
                                 return;
                             }
-                        }
-
-                        if (!$found) {
-                            $this->cli->writeln($file);
-                        }
-                        $found = true;
-                        $replacement = '{_ ' . $orig . '}';
-                        $newlines = 0;
-                        message:
-                        for (;$newlines > 0; --$newlines) {
-                            Cursor::move('up');
-                            Cursor::clear('line');
-                        }
-                        $message = "Do you want to replace: " . $orig . "\n with " . $replacement . ' ?';
-                        $newlines = substr_count($message, "\n") + 1;
-                        readline:
-                        $this->cli->writeln($message);
-                        $line = strtolower($rl->readLine('(y)es/(n)o/(m)ore: '));
-                        if ($line === 'y' || $line === 'yes') {
-                            Cursor::move('up');
-                            Cursor::clear('line');
-                            $source = str_replace($orig, $replacement, $source);
-                            file_put_contents($file, $source);
-                            $this->cli->successLine('REPLACED');
-                            $this->cli->writeln(str_repeat('-', 100));
-                            return;
-                        } elseif ($line === 'n' || $line === 'no') {
-                            Cursor::move('up');
-                            Cursor::clear('line');
-                            $this->cli->errorLine('SKIPPED');
-                            file_put_contents($skippedFile, json_encode($item = [
-                                    'file' => $file,
-                                    'match' => $orig,
-                                ]) . "\n", FILE_APPEND);
-                            $skipped[] = $item;
-                            $this->cli->writeln(str_repeat('-', 100));
-                            return;
-                        } elseif ($line === 'm' || $line === 'more') {
-                            Cursor::move('up');
-                            Cursor::clear('line');
-                            try {
-                                preg_replace_callback('~<script[^>]*>.*?</script>|<[^>]+>|\{.*?\}|'
-                                    . '(.{0,200})(' . preg_quote($orig,
-                                        '~') . ')(.{0,200})~siu', function ($match) {
-                                    if (($match[2] ?? '') === '') {
-                                        return;
-                                    }
-                                    $this->cli->write($match[1]);
-                                    $this->cli->write($match[2], 'i');
-                                    $this->cli->writeln($match[3]);
-                                    $this->cli->writeln('');
-                                    throw new InterruptedException;
-                                }, $source);
+                            $orig = trim($match[2]);
+                            if (in_array($orig, $replaced)) {
+                                return;
                             }
-                            catch (InterruptedException $e) {
-                                goto message;
+                            foreach ($skipped as $item) {
+                                if ($item['file'] === $file && $item['match'] === $orig) {
+                                    return;
+                                }
                             }
 
+                            if (!$found) {
+                                $this->cli->writeln($file);
+                            }
+                            $found = true;
+                            $replacement = '{_ ' . $orig . '}';
+                            $newlines = 0;
+                            message:
+                            for (; $newlines > 0; --$newlines) {
+                                Cursor::move('up');
+                                Cursor::clear('line');
+                            }
+                            $message = "Do you want to replace: " . $orig . "\n with " . $replacement . ' ?';
+                            $newlines = substr_count($message, "\n") + 1;
+                            readline:
+                            $this->cli->writeln($message);
+                            $line = strtolower($rl->readLine('(y)es/(n)o/(m)ore: '));
+                            if ($line === 'y' || $line === 'yes') {
+                                Cursor::move('up');
+                                Cursor::clear('line');
+                                $source = str_replace($orig, $replacement, $source);
+                                file_put_contents($file, $source);
+                                $this->cli->successLine('REPLACED');
+                                $this->cli->writeln(str_repeat('-', 100));
+                                //$replaced[] = $source;
+                                throw new InterruptedException;
+                                return;
+                            } elseif ($line === 'n' || $line === 'no') {
+                                Cursor::move('up');
+                                Cursor::clear('line');
+                                $this->cli->errorLine('SKIPPED');
+                                file_put_contents($skippedFile, json_encode($item = [
+                                        'file' => $file,
+                                        'match' => $orig,
+                                    ]) . "\n", FILE_APPEND);
+                                $skipped[] = $item;
+                                $this->cli->writeln(str_repeat('-', 100));
+                                return;
+                            } elseif ($line === 'm' || $line === 'more') {
+                                Cursor::move('up');
+                                Cursor::clear('line');
+                                try {
+                                    preg_replace_callback('~<script[^>]*>.*?</script>|<[^>]+>|\{.*?\}|'
+                                        . '(.{0,200})(' . preg_quote($orig,
+                                            '~') . ')(.{0,200})~siu', function ($match) {
+                                        if (($match[2] ?? '') === '') {
+                                            return;
+                                        }
+                                        $this->cli->write($match[1]);
+                                        $this->cli->write($match[2], 'i');
+                                        $this->cli->writeln($match[3]);
+                                        $this->cli->writeln('');
+                                        throw new InterruptedException;
+                                    }, $source);
+                                } catch (InterruptedException $e) {
+                                    goto message;
+                                }
+
+                                goto readline;
+                            }
+                            Cursor::move('up');
+                            Cursor::clear('line');
                             goto readline;
-                        }
-                        Cursor::move('up');
-                        Cursor::clear('line');
-                        goto readline;
-                    }, $cleanSource);
+                        }, $cleanSource);
+                } catch (InterruptedException $e) {
+                    goto try_block;
+                }
                 if ($found) {
                     goto find;
                 }
