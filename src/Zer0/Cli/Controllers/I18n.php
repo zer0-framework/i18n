@@ -22,6 +22,11 @@ final class I18n extends AbstractController
      */
     protected $i18nConfig;
 
+    /**
+     * @var string
+     */
+    protected $command = 'i18n';
+
     public function before(): void
     {
         $this->i18nConfig = $this->app->broker('I18n')->getConfig();
@@ -184,6 +189,8 @@ final class I18n extends AbstractController
                                 }
 
                                 goto readline;
+                            } elseif ($line === 'q') {
+                                exit;
                             }
                             Cursor::move('up');
                             Cursor::clear('line');
