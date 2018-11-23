@@ -20,7 +20,8 @@
         "php": ">=7.2",
         "Zer0-Framework/Zer0": "*",
         "Zer0-Framework/Config": "*",
-        "gettext/gettext": "^4.6.1"
+        "gettext/gettext": "^4.6.1",
+        "nikic/php-parser": "^4.1"
     },
     "autoload": {
         "classmap": ["src/"]
