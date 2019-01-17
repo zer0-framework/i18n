@@ -19,7 +19,8 @@ class I18n extends Base
     {
         $config = $this->getConfig();
         $t = new Translator;
-        $t->loadTranslations(ZERO_ROOT . '/' . ($this->i18nConfig->compiled_dir ?? 'compiled/locales') . '/' . $this->lastName . '.php');
+        $path = ZERO_ROOT . '/' . ($this->i18nConfig->compiled_dir ?? 'compiled/locales') . '/' . $this->lastName . '.php';
+        $t->loadTranslations(include $path);
         $t->register();
         return $t;
     }
