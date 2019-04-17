@@ -14,8 +14,9 @@ class I18n extends Base
 
     /**
      * @param ConfigInterface $config
+     * @return Translator
      */
-    public function instantiate(?ConfigInterface $config)
+    public function instantiate(?ConfigInterface $config): Translator
     {
         $config = $this->getConfig();
         $t = new Translator;
@@ -23,5 +24,15 @@ class I18n extends Base
         $t->loadTranslations(include $path);
         $t->register();
         return $t;
+    }
+
+    /**
+     * @param string $name
+     * @param bool $caching
+     * @return Translator
+     */
+    public function get(string $name = '', bool $caching = true): Translator
+    {
+        return parent::get($name, $caching);
     }
 }
