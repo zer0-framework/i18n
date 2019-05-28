@@ -113,7 +113,7 @@ final class I18n extends AbstractController
             'file' => $file,
             'match' => $orig,
         ];
-        file_put_contents($skippedFile, json_encode($item) . "\n", FILE_APPEND);
+        file_put_contents($this->skippedFile, json_encode($item) . "\n", FILE_APPEND);
         $this->skipped[] = $item;
     }
 
