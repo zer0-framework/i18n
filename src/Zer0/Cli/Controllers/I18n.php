@@ -137,7 +137,7 @@ final class I18n extends AbstractController
         $rl = new Readline;
         foreach (explode("\n", shell_exec(
             'find src -name \'*.php\';'
-            //. ' find src -name \'*.tpl\';'
+            . ' find src -name \'*.tpl\';'
             . ' find public/js -name \'*.js\''
         )) as $file) {
             if ($file === '') {
