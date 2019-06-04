@@ -7,6 +7,8 @@ use Gettext\Translation;
 use Gettext\Translations;
 use Hoa\Console\Cursor;
 use Hoa\Console\Readline\Readline;
+use Peast\Formatter\Compact;
+use Peast\Traverser;
 use PhpParser\BuilderFactory;
 use PhpParser\Error;
 use PhpParser\Node;
@@ -132,14 +134,88 @@ final class I18n extends AbstractController
             $this->skipped = [];
         }
 
-        foreach (explode("\n", shell_exec('find src -name \'*.php\'; find src -name \'*.tpl\'')) as $file) {
+        $rl = new Readline;
+        foreach (explode("\n", shell_exec(
+            'find src -name \'*.php\';'
+            //. ' find src -name \'*.tpl\';'
+            . ' find public/js -name \'*.js\''
+        )) as $file) {
             if ($file === '') {
                 continue;
             }
 
             $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
             $source = file_get_contents($file);
-            if ($extension === 'php') {
+            if ($extension === 'js') {
+                if (preg_match('~\.min\b~i', $file)) {
+                    continue;
+                }
+                start:
+                $ast = \Peast\Peast::latest($source, [])->parse();
+                $traverser = new \Peast\Traverser;
+                $changed = false;
+                $traverser->addFunction(function (\Peast\Syntax\Node\Node $node) use (&$source, $rl, $file, &$changed) {
+                    $type = $node->getType();
+                    if ($type === 'CallExpression') {
+                        $callee = $node->getCallee();
+                        if ($callee->getType() === 'Identifier') {
+                            if ($callee->getName() === '_') {
+                                return Traverser::DONT_TRAVERSE_CHILD_NODES;
+                            }
+                        }
+                    } elseif ($type === 'Literal') {
+                        $orig = $node->getValue();
+                        $isUtf = mb_strlen($orig, 'utf-8') != strlen($orig);
+                        if (!$isUtf) { //&& !preg_match('~\s~', $orig)
+                            return;
+                        }
+
+                        $newlines = 0;
+                        message:
+                        for (; $newlines > 0; --$newlines) {
+                            Cursor::move('up');
+                            Cursor::clear('line');
+                        }
+                        $message = "Do you want to replace '$orig' in file $file?";
+                        $newlines = substr_count($message, "\n") + 1;
+
+                        $this->cli->writeln($message);
+                        readline:
+
+                        $line = strtolower($rl->readLine('(y)es/(n)o/(m)ore: '));
+                        if ($line === 'y' || $line === 'yes') {
+                            Cursor::move('up');
+                            Cursor::clear('line');
+
+                            $location = $node->getLocation();
+                            $source = mb_substr($source, 0, $location->getStart()->getIndex())
+                                . '_(' . json_encode($orig, JSON_UNESCAPED_UNICODE) . ')'
+                                . mb_substr($source, $location->getEnd()->getIndex());
+                            file_put_contents($file, $source);
+                            $this->cli->successLine('REPLACED');
+                            $this->cli->writeln(str_repeat('-', 100));
+                            $changed = true;
+                            return Traverser::STOP_TRAVERSING;
+                        } elseif ($line === 'n' || $line === 'no') {
+                            Cursor::move('up');
+                            Cursor::clear('line');
+                            $this->cli->errorLine('SKIPPED');
+                            $this->addSkipped($file, $orig);
+                            $this->cli->writeln(str_repeat('-', 100));
+                        } elseif ($line === 'm' || $line === 'more') {
+                            goto readline;
+                        } elseif ($line === 'q') {
+                            exit;
+                        }
+                    }
+                });
+                $traverser->traverse($ast);
+                if ($changed) {
+                    goto start;
+                }
+                //$renderer = new \Peast\Renderer;
+                //$renderer->setFormatter(new \Peast\Formatter\PrettyPrint);
+            } elseif ($extension === 'php') {
                 $parser = (new ParserFactory)->create(ParserFactory::PREFER_PHP7);
                 try {
                     $ast = $parser->parse($source);
@@ -218,7 +294,7 @@ final class I18n extends AbstractController
                                 Cursor::move('up');
                                 Cursor::clear('line');
                             }
-                            $message = "Do you want to replace: " . $orig . " ?";
+                            $message = "Do you want to replace " . $orig . " in file " . $file;
                             $newlines = substr_count($message, "\n") + 1;
 
                             $this->cli->writeln($message);
@@ -248,9 +324,8 @@ final class I18n extends AbstractController
                 if ($visitor->changed) {
                     $ast = $traverser->traverse($ast);
                     $prettyPrinter = new PrettyPrinter\Standard;
-                    echo $prettyPrinter->prettyPrintFile($ast);
-
-                    exit;
+                    file_put_contents($file, $prettyPrinter->prettyPrintFile($ast));
+                    $this->cli->successLine('REPLACED');
                 }
 
             } elseif ($extension === 'tpl') {
