@@ -20,7 +20,7 @@
         "php": ">=7.2",
         "zer0-framework/core": "*",
         "zer0-framework/config": "*",
-        "gettext/gettext": "^4.6.1",
+        "gettext/gettext": "^5.6.1",
         "nikic/php-parser": "^4.1",
         "mck89/peast": "dev-master"
     },
